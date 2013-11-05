@@ -56,6 +56,19 @@ class Table(object):
 
         return is_empty
 
+    def sum(self, axis='whole'):
+        c = self.conn.cursor()
+
+        if axis == 'whole':
+            return c.execute("SELECT sum(abundance) FROM data").fetchone()[0]
+        elif axis == 'sample':
+            #return [r[0] for r in c.execute("SELECT sum(abundance) FROM data GROUP BY sample_id")]
+            return c.execute("SELECT name, sum(abundance) FROM data, sample WHERE data.sample_id = sample.id GROUP BY sample_id").fetchall()
+        elif axis == 'observation':
+            return c.execute("SELECT name, sum(abundance) FROM data, observation WHERE data.observation_id = observation.id GROUP BY observation_id").fetchall()
+        else:
+            raise ValueError("Unrecognized axis '%s'" % axis)
+
     @property
     def nnz(self):
         c = self.conn.cursor()
