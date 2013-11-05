@@ -1,29 +1,10 @@
 #!/usr/bin/env python
-
-#-----------------------------------------------------------------------------
-# Copyright (c) 2011-2013, The BIOM Format Development Team.
-#
-# Distributed under the terms of the Modified BSD License.
-#
-# The full license is in the file COPYING.txt, distributed with this software.
-#-----------------------------------------------------------------------------
-
 from __future__ import division
 
-__author__ = "Jai Ram Rideout"
-__copyright__ = "Copyright 2011-2013, The BIOM Format Development Team"
-__credits__ = ["Jai Ram Rideout"]
-__license__ = "BSD"
-__url__ = "http://biom-format.org"
-__version__ = "1.2.0-dev"
-__maintainer__ = "Jai Ram Rideout"
-__email__ = "jai.rideout@gmail.com"
-
-from itertools import izip
 import h5py
 import numpy as np
+from itertools import izip
 from scipy.sparse import coo_matrix, csr_matrix, spdiags
-from biom.exception import TableException
 
 class Table(object):
     """
@@ -117,7 +98,7 @@ class Table(object):
         elif axis == 'observation':
             axis = 1
         else:
-            raise TableException("Unrecognized axis '%s'" % axis)
+            raise ValueError("Unrecognized axis '%s'" % axis)
 
         matrix_sum = np.squeeze(np.asarray(self._data.sum(axis=axis)))
 
@@ -174,7 +155,7 @@ class Table(object):
         elif axis == 'observation':
             sum_axis = 1
         else:
-            raise TableException("Unrecognized axis '%s'" % axis)
+            raise ValueError("Unrecognized axis '%s'" % axis)
 
         self._data = self._data.tocsr()
 
