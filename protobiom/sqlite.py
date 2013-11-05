@@ -5,13 +5,6 @@ import sqlite3
 import numpy as np
 
 class Table(object):
-    """
-
-    Some of the code in this class is taken and modified from other parts of
-    the BIOM project. Credit goes to the contributing authors of that code
-    where applicable.
-    """
-
     @classmethod
     def fromFile(cls, table_fp):
         conn = sqlite3.connect(table_fp)

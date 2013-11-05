@@ -7,13 +7,6 @@ from itertools import izip
 from scipy.sparse import coo_matrix, csr_matrix, spdiags
 
 class Table(object):
-    """
-
-    Some of the code in this class is taken and modified from other parts of
-    the BIOM project. Credit goes to the contributing authors of that code
-    where applicable.
-    """
-
     @classmethod
     def fromFile(cls, table_fp):
         table_f = h5py.File(table_fp, 'r')
