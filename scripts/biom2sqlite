@@ -1,0 +1,104 @@
+#!/usr/bin/env python
+
+#-----------------------------------------------------------------------------
+# Copyright (c) 2011-2013, The BIOM Format Development Team.
+#
+# Distributed under the terms of the Modified BSD License.
+#
+# The full license is in the file COPYING.txt, distributed with this software.
+#-----------------------------------------------------------------------------
+
+from __future__ import division
+
+__author__ = "Jai Ram Rideout"
+__copyright__ = "Copyright 2011-2013, The BIOM Format Development Team"
+__credits__ = ["Jai Ram Rideout"]
+__license__ = "BSD"
+__url__ = "http://biom-format.org"
+__version__ = "1.2.0-dev"
+__maintainer__ = "Jai Ram Rideout"
+__email__ = "jai.rideout@gmail.com"
+
+import sys
+import numpy
+import sqlite3
+from biom.convert import TableReader
+
+print "Reading BIOM file...",
+in_fp, out_fp = sys.argv[1:]
+in_f = open(in_fp, 'U')
+t = TableReader(in_f.read())
+in_f.close()
+print "Done"
+
+print "Creating database...",
+conn = sqlite3.connect(out_fp)
+c = conn.cursor()
+c.execute("PRAGMA foreign_keys = ON")
+c.execute("""CREATE TABLE observation (id INTEGER PRIMARY KEY, name TEXT UNIQUE)""")
+c.execute("""CREATE TABLE sample (id INTEGER PRIMARY KEY, name TEXT UNIQUE)""")
+c.execute("""CREATE TABLE data (
+    observation_id INTEGER,
+    sample_id INTEGER,
+    abundance INTEGER,
+    FOREIGN KEY (observation_id) REFERENCES observation (id) ON DELETE CASCADE,
+    FOREIGN KEY (sample_id) REFERENCES sample (id) ON DELETE CASCADE,
+    PRIMARY KEY (observation_id, sample_id)
+)""")
+conn.commit()
+print "Done"
+
+#print "Populating top-level metadata fields...",
+#out_f.attrs['id'] = t.table_id
+#out_f.attrs['format'] = t.version
+#out_f.attrs['format_url'] = t.url
+#out_f.attrs['type'] = t.table_type
+#out_f.attrs['generated_by'] = t.generated_by
+#out_f.attrs['date'] = t.date
+#out_f.attrs['matrix_type'] = t.matrix_type
+#out_f.attrs['matrix_element_type'] = t.matrix_element_type
+#if t.comment is not None:
+#    out_f.attrs['comment'] = t.comment
+#out_f.attrs['shape'] = t.shape
+#print "Done"
+
+print "Populating metadata tables...",
+obs_ids = [(e,) for e in t.observation_ids]
+samp_ids = [(e,) for e in t.sample_ids]
+c.executemany("INSERT INTO observation (name) VALUES (?)", obs_ids)
+c.executemany("INSERT INTO sample (name) VALUES (?)", samp_ids)
+conn.commit()
+print "Done"
+
+print "Building id -> row id lookup..."
+obs_lookup = {}
+for row_id, observation_id in c.execute("SELECT id, name FROM observation"):
+    obs_lookup[observation_id] = row_id
+
+samp_lookup = {}
+for row_id, sample_id in c.execute("SELECT id, name FROM sample"):
+    samp_lookup[sample_id] = row_id
+print "Done"
+
+print "Populating data table...",
+count = 0
+chunk_size = 1000000
+data = []
+q = "INSERT INTO data (observation_id, sample_id, abundance) VALUES (?, ?, ?)"
+for e in t.data():
+    o = obs_lookup[t.observation_ids[e[0]]]
+    s = samp_lookup[t.sample_ids[e[1]]]
+    data.append((o, s, e[2]))
+    count += 1
+
+    if (count % chunk_size) == 0:
+        c.executemany(q, data)
+        conn.commit()
+        data = []
+        print count
+c.executemany(q, data)
+conn.commit()
+print "Done"
+
+conn.commit()
+conn.close()

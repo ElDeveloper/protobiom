@@ -1,0 +1,122 @@
+#!/usr/bin/env python
+
+#-----------------------------------------------------------------------------
+# Copyright (c) 2011-2013, The BIOM Format Development Team.
+#
+# Distributed under the terms of the Modified BSD License.
+#
+# The full license is in the file COPYING.txt, distributed with this software.
+#-----------------------------------------------------------------------------
+
+from __future__ import division
+
+__author__ = "Jai Ram Rideout"
+__copyright__ = "Copyright 2011-2013, The BIOM Format Development Team"
+__credits__ = ["Jai Ram Rideout"]
+__license__ = "BSD"
+__url__ = "http://biom-format.org"
+__version__ = "1.2.0-dev"
+__maintainer__ = "Jai Ram Rideout"
+__email__ = "jai.rideout@gmail.com"
+
+import sys
+import h5py
+import numpy
+from biom.convert import TableReader
+
+in_fp, out_fp, mode = sys.argv[1:]
+in_f = open(in_fp, 'U')
+t = TableReader(in_f.read())
+in_f.close()
+
+print "Creating HDF5 file...",
+out_f = h5py.File(out_fp, 'w')
+print "Done"
+
+print "Populating top-level metadata fields...",
+out_f.attrs['id'] = t.table_id
+out_f.attrs['format'] = t.version
+out_f.attrs['format_url'] = t.url
+out_f.attrs['type'] = t.table_type
+out_f.attrs['generated_by'] = t.generated_by
+out_f.attrs['date'] = t.date
+out_f.attrs['matrix_type'] = t.matrix_type
+out_f.attrs['matrix_element_type'] = t.matrix_element_type
+if t.comment is not None:
+    out_f.attrs['comment'] = t.comment
+out_f.attrs['shape'] = t.shape
+print "Done"
+
+if mode == 'dense':
+    print "Creating dataset...",
+    dset = out_f.create_dataset('data', t.shape, dtype=t.matrix_element_type,
+                                compression='gzip')
+    print "Done"
+
+    print "Writing data...",
+    count = 0
+    for e in t.data():
+        dset[e[0], e[1]] = e[2]
+        count += 1
+
+        if (count % 100000) == 0:
+            print "Flushing, NNZ processed: %d..." % count,
+            out_f.flush()
+            print "Done"
+    out_f.flush()
+    print "Done"
+
+    print "Populating metadata...",
+    out_f['rows'] = t.observation_ids
+    out_f['columns'] = t.sample_ids
+    dset.dims[0].label = 'observations'
+    dset.dims[1].label = 'samples'
+    dset.dims.create_scale(out_f['rows'], 'ids')
+    dset.dims.create_scale(out_f['columns'], 'ids')
+    dset.dims[0].attach_scale(out_f['rows'])
+    dset.dims[1].attach_scale(out_f['columns'])
+    print "Done"
+elif mode == 'sparse':
+    print "Populating metadata...",
+    out_f['rows'] = t.observation_ids
+    out_f['columns'] = t.sample_ids
+    out_f.flush()
+    print "Done"
+
+    print "Counting number of nonzero entries...",
+    nnz = 0
+    for e in t.data():
+        nnz += 1
+    print "Done"
+    print "NNZ: %d" % nnz
+    print "Table density: %r" % (nnz / (t.shape[0] * t.shape[1]))
+
+    #nnz = 107439386
+
+    print "Loading data into memory...",
+    count = 0
+    row_data = numpy.empty(nnz)
+    col_data = numpy.empty(nnz)
+    value_data = numpy.empty(nnz)
+
+    for e in t.data():
+        row_data[count] = e[0]
+        col_data[count] = e[1]
+        value_data[count] = e[2]
+        count += 1
+
+        if (count % 100000) == 0:
+            print '%.2f%%' % ((count / nnz) * 100)
+    print "Done"
+
+    print "Creating dataset...",
+    data_grp = out_f.create_group('data')
+    data_grp.create_dataset('rows', data=row_data)
+    data_grp.create_dataset('columns', data=col_data)
+    data_grp.create_dataset('values', data=value_data)
+    out_f.flush()
+    print "Done"
+else:
+    raise ValueError
+
+out_f.close()
