@@ -81,3 +81,14 @@ class Table(object):
             density = self.nnz / (self.NumObservations * self.NumSamples)
 
         return density
+
+    def iterObservationData(self):
+        c = self.conn.cursor()
+
+        for i in range(1, self.NumObservations + 1):
+            row = np.zeros(self.NumSamples)
+
+            for r in c.execute("SELECT sample_id, abundance FROM data WHERE observation_id = ?", (i,)):
+                row[r[0] - 1] = r[1]
+
+            yield row

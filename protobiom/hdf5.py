@@ -117,7 +117,7 @@ class Table(object):
 
         for i in range(self.NumObservations):
             vec = self._data.getrow(i)
-            dense_vec = np.asarray(vec.todense())
+            dense_vec = vec.toarray()
 
             if vec.shape == (1, 1):
                 result = dense_vec.reshape(1)
@@ -125,7 +125,6 @@ class Table(object):
                 result = np.squeeze(dense_vec)
 
             yield result
-            yield vec
 
     # For sorting, row/col swapping detailed here may be useful:
     # http://stackoverflow.com/questions/15155276/rearrange-sparse-arrays-by-swapping-rows-and-columns
