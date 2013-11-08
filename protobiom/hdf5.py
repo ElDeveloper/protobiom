@@ -29,6 +29,15 @@ class Table(object):
         self.SampleIds = SampleIds
         self.TableId = TableId
 
+        self._index_ids()
+
+    def _index_ids(self):
+        self._sample_index = self._index_list(self.SampleIds)
+        self._obs_index = self._index_list(self.ObservationIds)
+
+    def _index_list(self, l):
+        return dict([(id_,idx) for idx,id_ in enumerate(l)])
+
     @property
     def shape(self):
         return self._data.shape
@@ -156,3 +165,31 @@ class Table(object):
                 csr_matrix(1. / self._data.sum(sum_axis)))
         return self.__class__(norm_data, self.ObservationIds[:],
                               self.SampleIds[:], self.TableId)
+
+    def sortById(self, axis, sort_f=sorted):
+        if axis == 'sample':
+            sort_order = sort_f(self.SampleIds)
+        elif axis == 'observation':
+            sort_order = sort_f(self.ObservationIds)
+        else:
+            raise ValueError
+
+        return self.reorder(axis, sort_order)
+
+    def reorder(self, axis, order):
+        if axis == 'sample':
+            self._data = self._data.tocsc()
+            order_idxs = [self._sample_index[id_] for id_ in order]
+            ordered_data = self._data[:,order_idxs]
+
+            return self.__class__(ordered_data, self.ObservationIds[:],
+                                  order[:], self.TableId)
+        elif axis == 'observation':
+            self._data = self._data.tocsr()
+            order_idxs = [self._obs_index[id_] for id_ in order]
+            ordered_data = self._data[order_idxs,:]
+
+            return self.__class__(ordered_data, order[:], self.SampleIds[:],
+                                  self.TableId)
+        else:
+            raise ValueError
