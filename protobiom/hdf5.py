@@ -29,6 +29,8 @@ class Table(object):
         self.SampleIds = SampleIds
         self.TableId = TableId
 
+        # This call hits us hard performance-wise. Need to either write a
+        # smarter/faster indexer or only build index when we need it (lazily).
         self._index_ids()
 
     def _index_ids(self):
@@ -100,7 +102,7 @@ class Table(object):
         elif axis == 'observation':
             axis = 1
         else:
-            raise ValueError("Unrecognized axis '%s'" % axis)
+            raise ValueError
 
         matrix_sum = np.squeeze(np.asarray(self._data.sum(axis=axis)))
 
@@ -120,43 +122,44 @@ class Table(object):
     def nonzero(self):
         return self._data.nonzero()
 
-    def iterObservationData(self):
+    def iterData(self, axis):
         """SLOW... still very slow even when not converting to dense"""
-        self._data = self._data.tocsr()
+        if axis == 'sample':
+            self._data = self._data.tocsc()
 
-        for i in range(self.NumObservations):
-            vec = self._data.getrow(i)
-            dense_vec = vec.toarray()
+            for i in range(self.NumSamples):
+                vec = self._data.getcol(i).T
+                dense_vec = vec.toarray()
 
-            if vec.shape == (1, 1):
-                result = dense_vec.reshape(1)
-            else:
-                result = np.squeeze(dense_vec)
+                if vec.shape == (1, 1):
+                    result = dense_vec.reshape(1)
+                else:
+                    result = np.squeeze(dense_vec)
 
-            yield result
+                yield result
+        elif axis == 'observation':
+            self._data = self._data.tocsr()
 
-    # For sorting, row/col swapping detailed here may be useful:
-    # http://stackoverflow.com/questions/15155276/rearrange-sparse-arrays-by-swapping-rows-and-columns
+            for i in range(self.NumObservations):
+                vec = self._data.getrow(i)
+                dense_vec = vec.toarray()
+
+                if vec.shape == (1, 1):
+                    result = dense_vec.reshape(1)
+                else:
+                    result = np.squeeze(dense_vec)
+
+                yield result
+        else:
+            raise ValueError
 
     def normalize(self, axis):
-        # Another solution: http://stackoverflow.com/a/12238133
-
-        # Could also use sklearn: http://stackoverflow.com/a/12396922
-        #import sklearn.preprocessing
-        #return sklearn.preprocessing.normalize(self._data, axis=1, norm='l1')
-
-        # From http://stackoverflow.com/a/8359856
-        # Only seems to work for square matrices though...
-        #ccd = spdiags(1./self._data.sum(1).T, 0, *self._data.shape)
-        #ccn = ccd * self._data.T
-        #return ccn
-
         if axis == 'sample':
             sum_axis = 0
         elif axis == 'observation':
             sum_axis = 1
         else:
-            raise ValueError("Unrecognized axis '%s'" % axis)
+            raise ValueError
 
         self._data = self._data.tocsr()
 

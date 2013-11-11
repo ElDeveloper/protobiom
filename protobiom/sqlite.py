@@ -14,10 +14,11 @@ class Table(object):
         self.conn = conn
 
     def __del__(self):
-        # TODO: should also (or instead) use a context manager to clean up
+        # Should also (or instead) use a context manager to clean up.
         self.conn.commit()
         self.conn.close()
-        print 'Cleaned up database'
+
+    # These simple properties could be lazily-loaded to improve performance.
 
     @property
     def shape(self):
@@ -82,13 +83,25 @@ class Table(object):
 
         return density
 
-    def iterObservationData(self):
+    def iterData(self, axis):
         c = self.conn.cursor()
 
-        for i in range(1, self.NumObservations + 1):
-            row = np.zeros(self.NumSamples)
+        if axis == 'sample':
+            # This is *extremely* slow.
+            for i in range(1, self.NumSamples + 1):
+                row = np.zeros(self.NumObservations)
 
-            for r in c.execute("SELECT sample_id, abundance FROM data WHERE observation_id = ?", (i,)):
-                row[r[0] - 1] = r[1]
+                for r in c.execute("SELECT observation_id, abundance FROM data WHERE sample_id = ?", (i,)):
+                    row[r[0] - 1] = r[1]
 
-            yield row
+                yield row
+        elif axis == 'observation':
+            for i in range(1, self.NumObservations + 1):
+                row = np.zeros(self.NumSamples)
+
+                for r in c.execute("SELECT sample_id, abundance FROM data WHERE observation_id = ?", (i,)):
+                    row[r[0] - 1] = r[1]
+
+                yield row
+        else:
+            raise ValueError
