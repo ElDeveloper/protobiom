@@ -68,7 +68,7 @@ class Table(object):
         elif axis == 'observation':
             return c.execute("SELECT name, sum(abundance) FROM data, observation WHERE data.observation_id = observation.id GROUP BY observation_id").fetchall()
         else:
-            raise ValueError("Unrecognized axis '%s'" % axis)
+            raise ValueError
 
     @property
     def nnz(self):
