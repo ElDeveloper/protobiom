@@ -57,8 +57,8 @@ class Table(object):
         return self.transpose()
 
     def transpose(self):
-        return self.__class__(self._data.transpose(), self.SampleIds[:],
-                              self.ObservationIds[:], self.TableId)
+        return self.__class__(self._data.transpose(), self.SampleIds.copy(),
+                              self.ObservationIds.copy(), self.TableId)
 
     def __eq__(self, other):
         eq = True
@@ -93,6 +93,10 @@ class Table(object):
             is_empty = True
 
         return is_empty
+
+    def copy(self):
+        return self.__class__(self._data.copy(), self.ObservationIds.copy(),
+                              self.SampleIds.copy(), self.TableId)
 
     def sum(self, axis='whole'):
         if axis == 'whole':
@@ -166,14 +170,14 @@ class Table(object):
         # Requires scipy >= 0.13.0
         norm_data = self._data.multiply(
                 csr_matrix(1. / self._data.sum(sum_axis)))
-        return self.__class__(norm_data, self.ObservationIds[:],
-                              self.SampleIds[:], self.TableId)
+        return self.__class__(norm_data, self.ObservationIds.copy(),
+                              self.SampleIds.copy(), self.TableId)
 
     def sortById(self, axis, sort_f=sorted):
         if axis == 'sample':
-            sort_order = sort_f(self.SampleIds)
+            sort_order = np.array(sort_f(self.SampleIds))
         elif axis == 'observation':
-            sort_order = sort_f(self.ObservationIds)
+            sort_order = np.array(sort_f(self.ObservationIds))
         else:
             raise ValueError
 
@@ -185,14 +189,14 @@ class Table(object):
             order_idxs = [self._sample_index[id_] for id_ in order]
             ordered_data = self._data[:,order_idxs]
 
-            return self.__class__(ordered_data, self.ObservationIds[:],
-                                  order[:], self.TableId)
+            return self.__class__(ordered_data, self.ObservationIds.copy(),
+                                  order.copy(), self.TableId)
         elif axis == 'observation':
             self._data = self._data.tocsr()
             order_idxs = [self._obs_index[id_] for id_ in order]
             ordered_data = self._data[order_idxs,:]
 
-            return self.__class__(ordered_data, order[:], self.SampleIds[:],
-                                  self.TableId)
+            return self.__class__(ordered_data, order.copy(),
+                                  self.SampleIds.copy(), self.TableId)
         else:
             raise ValueError
