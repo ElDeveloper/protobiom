@@ -3,6 +3,7 @@ from __future__ import division
 
 import h5py
 import numpy as np
+from datetime import datetime
 from itertools import izip
 from scipy.sparse import coo_matrix, csr_matrix, spdiags
 
@@ -200,3 +201,27 @@ class Table(object):
                                   self.SampleIds.copy(), self.TableId)
         else:
             raise ValueError
+
+    def toFile(self, fp, generated_by='biom-format', storage_type='sparse'):
+        out_f = h5py.File(fp, 'w')
+
+        out_f.attrs['id'] = self.TableId
+        out_f.attrs['format'] = "Biological Observation Matrix 2.0.0"
+        out_f.attrs['format_url'] = "http://biom-format.org"
+        out_f.attrs['type'] = 'foo'
+        out_f.attrs['generated_by'] = generated_by
+        out_f.attrs['date'] = datetime.now().isoformat()
+        out_f.attrs['matrix_type'] = storage_type
+        out_f.attrs['matrix_element_type'] = self._data.dtype.name
+        out_f.attrs['shape'] = self.shape
+
+        out_f['rows'] = self.ObservationIds
+        out_f['columns'] = self.SampleIds
+
+        self._data = self._data.tocoo()
+        data_grp = out_f.create_group('data')
+        data_grp.create_dataset('rows', data=self._data.row)
+        data_grp.create_dataset('columns', data=self._data.col)
+        data_grp.create_dataset('values', data=self._data.data)
+
+        out_f.close()
