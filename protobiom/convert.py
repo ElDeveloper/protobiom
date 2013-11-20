@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import division
+import json
 
 class TableReader(object):
     def __init__(self, table_str):
@@ -68,14 +69,26 @@ class TableReader(object):
     @property
     def observation_ids(self):
         if not hasattr(self, '_observation_ids'):
-            self._observation_ids = self._parse_metadata('rows')
+            self._observation_ids = self._parse_ids('rows')
         return self._observation_ids
 
     @property
     def sample_ids(self):
         if not hasattr(self, '_sample_ids'):
-            self._sample_ids = self._parse_metadata('columns')
+            self._sample_ids = self._parse_ids('columns')
         return self._sample_ids
+
+    @property
+    def observation_metadata(self):
+        if not hasattr(self, '_observation_metadata'):
+            self._observation_metadata = self._parse_metadata('rows')
+        return self._observation_metadata
+
+    @property
+    def sample_metadata(self):
+        if not hasattr(self, '_sample_metadata'):
+            self._sample_metadata = self._parse_metadata('columns')
+        return self._sample_metadata
 
     def data(self):
         search_str = '"data": [['
@@ -114,19 +127,31 @@ class TableReader(object):
         assert len(dim_strs) == 2
         return tuple(map(int, dim_strs))
 
+    def _parse_ids(self, axis):
+        search_str = '"%s": [{' % axis
+        start_idx = self.table_str.index(search_str) + len(search_str) - 2
+        end_idx = self.table_str.index('}]', start_idx) + 2
+        md_str = self.table_str[start_idx:end_idx]
+
+        ids = []
+        for e in json.loads(md_str):
+            ids.append(str(e['id']))
+
+        return ids
+
     def _parse_metadata(self, axis):
         search_str = '"%s": [{' % axis
-        start_idx = self.table_str.index(search_str) + len(search_str)
+        start_idx = self.table_str.index(search_str) + len(search_str) - 2
+        end_idx = self.table_str.index('}]', start_idx) + 2
+        md_str = self.table_str[start_idx:end_idx]
 
         md = []
-        while True:
-            end_idx = self.table_str.index('}', start_idx)
-            fields = self.table_str[start_idx:end_idx].split(', ')
-            assert len(fields) == 2
-            md.append(fields[0].split('"id": "')[1][:-1])
+        for e in json.loads(md_str):
+            e_md = e['metadata']
 
-            if self.table_str[end_idx + 1] == ',':
-                start_idx = end_idx + 3
+            if e_md is None:
+                return None
             else:
-                break
+                md.append(str(';'.join(e['metadata']['taxonomy'])))
+
         return md

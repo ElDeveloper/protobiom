@@ -60,8 +60,18 @@ if mode == 'dense':
     print "Done"
 elif mode == 'sparse':
     print "Populating metadata...",
-    out_f['rows'] = t.observation_ids
-    out_f['columns'] = t.sample_ids
+    obs_grp = out_f.create_group('observations')
+    obs_grp['ids'] = t.observation_ids
+
+    if t.observation_metadata is not None:
+        obs_grp['metadata'] = t.observation_metadata
+
+    samp_grp = out_f.create_group('samples')
+    samp_grp['ids'] = t.sample_ids
+
+    if t.sample_metadata is not None:
+        samp_grp['metadata'] = t.sample_metadata
+
     out_f.flush()
     print "Done"
 
