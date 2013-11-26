@@ -47,6 +47,7 @@ class Table(object):
         if SampleMetadata is None:
             SampleMetadata = np.array([None] * len(self.SampleIds))
         self.SampleMetadata = SampleMetadata
+
         self.TableId = TableId
         self.TableType = TableType
 
