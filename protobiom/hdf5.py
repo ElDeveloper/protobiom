@@ -63,6 +63,10 @@ class Table(object):
         return self.shape[1]
 
     @property
+    def nnz(self):
+        return self._data.nnz
+
+    @property
     def T(self):
         return self.transpose()
 
@@ -117,6 +121,8 @@ class Table(object):
         return is_empty
 
     def hasMetadata(self, axis):
+        # TODO: should have a decorator (or some other mechanism) that performs
+        # axis validation for methods that accept an axis parameter.
         if axis == 'observation':
             md = self.ObservationMetadata
         elif axis == 'sample':
@@ -133,9 +139,12 @@ class Table(object):
                               self.SampleMetadata.copy(), self.TableId,
                               self.TableType)
 
-    def sum(self, axis='whole'):
+    def sum(self, axis='whole', qualitative=False):
         if axis == 'whole':
-            axis = None
+            if qualitative:
+                return self.nnz
+            else:
+                axis = None
         elif axis == 'observation':
             axis = 1
         elif axis == 'sample':
@@ -143,7 +152,12 @@ class Table(object):
         else:
             raise ValueError
 
-        matrix_sum = np.squeeze(np.asarray(self._data.sum(axis=axis)))
+        if qualitative:
+            data = (self._data > 0)
+        else:
+            data = self._data
+
+        matrix_sum = np.squeeze(np.asarray(data.sum(axis=axis)))
 
         if axis is not None and matrix_sum.shape == ():
             matrix_sum = matrix_sum.reshape(1)
@@ -211,6 +225,31 @@ class Table(object):
 
         return self
 
+    def filter(self, axis, ids_to_keep=None, min_count=0, max_count=np.inf,
+               min_nonzero=0, max_nonzero=np.inf, negate_ids_to_keep=False):
+        if axis == 'observation':
+            if ids_to_keep is None:
+                ids_to_keep = self.ObservationIds
+
+            axis_ids = self.ObservationIds
+        elif axis == 'sample':
+            if ids_to_keep is None:
+                ids_to_keep = self.SampleIds
+
+            axis_ids = self.SampleIds
+        else:
+            raise ValueError
+
+        quan_sums = self.sum(axis)
+        qual_sums = self.sum(axis, qualitative=True)
+        ids = axis_ids[((quan_sums >= min_count) & (quan_sums <= max_count)) &
+                       ((qual_sums >= min_nonzero) &
+                        (qual_sums <= max_nonzero))]
+        ids = ids[np.in1d(ids, ids_to_keep, invert=negate_ids_to_keep)]
+        self.take(axis, ids)
+
+        return self
+
     def sortById(self, axis, sort_f=np.sort):
         if axis == 'observation':
             sort_order = sort_f(self.ObservationIds)
@@ -219,9 +258,9 @@ class Table(object):
         else:
             raise ValueError
 
-        return self.reorder(axis, sort_order)
+        return self.take(axis, sort_order)
 
-    def reorder(self, axis, order):
+    def take(self, axis, order):
         if axis == 'observation':
             self._data = self._data.tocsr()
             order_idxs = [self.index('observation', id_) for id_ in order]
