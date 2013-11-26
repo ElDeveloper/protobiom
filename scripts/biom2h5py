@@ -6,7 +6,7 @@ import h5py
 import numpy
 from protobiom.convert import TableReader
 
-in_fp, out_fp, mode = sys.argv[1:]
+in_fp, out_fp = sys.argv[1:]
 in_f = open(in_fp, 'U')
 t = TableReader(in_f.read())
 in_f.close()
@@ -29,86 +29,54 @@ if t.comment is not None:
 out_f.attrs['shape'] = t.shape
 print "Done"
 
-if mode == 'dense':
-    print "Creating dataset...",
-    dset = out_f.create_dataset('data', t.shape, dtype=t.matrix_element_type,
-                                compression='gzip')
-    print "Done"
+print "Populating metadata...",
+obs_grp = out_f.create_group('observations')
+obs_grp['ids'] = t.observation_ids
 
-    print "Writing data...",
-    count = 0
-    for e in t.data():
-        dset[e[0], e[1]] = e[2]
-        count += 1
+if t.observation_metadata is not None:
+    obs_grp['metadata'] = t.observation_metadata
 
-        if (count % 100000) == 0:
-            print "Flushing, NNZ processed: %d..." % count,
-            out_f.flush()
-            print "Done"
-    out_f.flush()
-    print "Done"
+samp_grp = out_f.create_group('samples')
+samp_grp['ids'] = t.sample_ids
 
-    print "Populating metadata...",
-    out_f['rows'] = t.observation_ids
-    out_f['columns'] = t.sample_ids
-    dset.dims[0].label = 'observations'
-    dset.dims[1].label = 'samples'
-    dset.dims.create_scale(out_f['rows'], 'ids')
-    dset.dims.create_scale(out_f['columns'], 'ids')
-    dset.dims[0].attach_scale(out_f['rows'])
-    dset.dims[1].attach_scale(out_f['columns'])
-    print "Done"
-elif mode == 'sparse':
-    print "Populating metadata...",
-    obs_grp = out_f.create_group('observations')
-    obs_grp['ids'] = t.observation_ids
+if t.sample_metadata is not None:
+    samp_grp['metadata'] = t.sample_metadata
 
-    if t.observation_metadata is not None:
-        obs_grp['metadata'] = t.observation_metadata
+out_f.flush()
+print "Done"
 
-    samp_grp = out_f.create_group('samples')
-    samp_grp['ids'] = t.sample_ids
+print "Counting number of nonzero entries...",
+nnz = 0
+for e in t.data():
+    nnz += 1
+print "Done"
+print "NNZ: %d" % nnz
+print "Table density: %r" % (nnz / (t.shape[0] * t.shape[1]))
 
-    if t.sample_metadata is not None:
-        samp_grp['metadata'] = t.sample_metadata
+#nnz = 107439386
 
-    out_f.flush()
-    print "Done"
+print "Loading data into memory...",
+count = 0
+row_data = numpy.empty(nnz)
+col_data = numpy.empty(nnz)
+value_data = numpy.empty(nnz)
 
-    print "Counting number of nonzero entries...",
-    nnz = 0
-    for e in t.data():
-        nnz += 1
-    print "Done"
-    print "NNZ: %d" % nnz
-    print "Table density: %r" % (nnz / (t.shape[0] * t.shape[1]))
+for e in t.data():
+    row_data[count] = e[0]
+    col_data[count] = e[1]
+    value_data[count] = e[2]
+    count += 1
 
-    #nnz = 107439386
+    if (count % 100000) == 0:
+        print '%.2f%%' % ((count / nnz) * 100)
+print "Done"
 
-    print "Loading data into memory...",
-    count = 0
-    row_data = numpy.empty(nnz)
-    col_data = numpy.empty(nnz)
-    value_data = numpy.empty(nnz)
-
-    for e in t.data():
-        row_data[count] = e[0]
-        col_data[count] = e[1]
-        value_data[count] = e[2]
-        count += 1
-
-        if (count % 100000) == 0:
-            print '%.2f%%' % ((count / nnz) * 100)
-    print "Done"
-
-    print "Creating dataset...",
-    data_grp = out_f.create_group('data')
-    data_grp.create_dataset('rows', data=row_data)
-    data_grp.create_dataset('columns', data=col_data)
-    data_grp.create_dataset('values', data=value_data)
-    out_f.flush()
-    print "Done"
-else:
-    raise ValueError
+print "Creating dataset...",
+data_grp = out_f.create_group('data')
+data_grp.create_dataset('rows', data=row_data)
+data_grp.create_dataset('columns', data=col_data)
+data_grp.create_dataset('values', data=value_data)
+out_f.flush()
+print "Done"
 
 out_f.close()
